@@ -11,6 +11,7 @@
     - php-pgsql
     - python3-psycopg2
     - zabbix-agent
+    - php-7.4
   notify:
     - Start zabbix-agent
 
