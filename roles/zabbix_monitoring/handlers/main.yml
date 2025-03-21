@@ -1,0 +1,20 @@
+---
+# handlers file for configure_web_server
+- name: Restart apache
+  service:
+    name: apache2
+    state: restarted
+
+- name: SERVICE reload
+  command: systemctl daemon-reload
+  become: yes
+
+- name: Restart postgresql
+  service:
+    name: postgresql
+    state: restarted
+
+- name: Start zabbix-agent
+  systemd:
+    name: zabbix-agent.service
+    state: started
