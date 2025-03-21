@@ -1,0 +1,9 @@
+---
+- name: Install zabbix monitoring
+  hosts: localhost
+  become_method: sudo
+  become: true
+  roles:
+    - role: zabbix_monitoring
+      tags: zabbix_monitoring
+
