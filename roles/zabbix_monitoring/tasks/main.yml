@@ -1,0 +1,101 @@
+---
+# tasks file for install_dependencies
+- name: install_dependencies
+  apt:
+    name: "{{ item }}"
+    state: present
+    update_cache: yes
+  with_items:
+    - zabbix-server-pgsql
+    - zabbix-frontend-php
+    - php-pgsql
+    - python3-psycopg2
+    - zabbix-agent
+  notify:
+    - Start zabbix-agent
+
+- name: copy apache2
+  vars:
+  template:
+    src: apache.j2
+    dest: /etc/apache2/apache2.conf
+  notify:
+    - Restart apache
+
+- name: enable mod_rewrite in apache
+  shell: "a2enmod rewrite"
+  register: a2enmodrewrite
+  changed_when: "'already enabled' not in a2enmodrewrite.stdout"
+  notify:
+    - Restart apache
+
+- name: copy pg_hba
+  vars:
+  template:
+    src: pg_hba.j2
+    dest: /etc/postgresql/14/main/pg_hba.conf
+  notify:
+    - Restart postgresql
+
+- name: Create app database
+  postgresql_db:
+    state: present
+    name: "zabbix"
+  become: yes
+  become_user: postgres
+
+- name: Create db user
+  postgresql_user:
+    state: present
+    name: "zabbix"
+    password: "12345678"
+  become: yes
+  become_user: postgres
+
+- name: Grant db user access to app db
+  postgresql_privs:
+    type: database
+    database: "zabbix"
+    roles: "zabbix"
+    grant_option: no
+    privs: all
+  become: yes
+  become_user: postgres
+
+- name: Copy database backup
+  copy:
+    src: zabbix.sql
+    dest: /tmp/zabbix.sql
+
+- name: Restore the database
+  postgresql_db:
+    state: restore
+    name: "zabbix"
+    target: /tmp/zabbix.sql
+  become: yes
+  become_user: postgres
+
+- name: Enable zabbix-frontend
+  shell: sudo a2enconf zabbix-frontend-php
+  notify:
+    - Restart apache
+
+- name: Copy frontend conf
+  shell: sudo cp /usr/share/zabbix/conf/zabbix.conf.php.example /etc/zabbix/zabbix.conf.php \
+         && sudo chown www-data:www-data /etc/zabbix/zabbix.conf.php
+  ignore_errors: true
+
+- name: Copy zabbix.conf
+  vars:
+  template:
+    src: zabbix.j2
+    dest: /etc/zabbix/zabbix.conf.php
+  notify:
+    - Restart apache
+
+- name: Run zabbix
+  shell: sudo systemctl enable zabbix-server \
+         && sudo systemctl start zabbix-server
+
+- name: Restart zabbix-agent
+  shell: sudo service zabbix-agent restart
